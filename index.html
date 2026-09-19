@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NUM Campus Mapper & Room Finder</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            DEFAULT: '#1e3a8a',
+                            dark: '#172554',
+                            light: '#3b82f6',
+                            accent: '#f59e0b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+    <!-- Header -->
+    <header class="bg-brand text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-brand-accent p-2 rounded-lg text-white font-bold text-xl">🗺️</div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">NUM Campus Mapper</h1>
+                    <p class="text-xs text-blue-200">Find your classes, buildings, and sub-schools instantly</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="switchTab('finder')" id="nav-finder" class="px-4 py-2 rounded-lg bg-blue-700 text-white font-medium text-sm transition hover:bg-blue-600">Room Finder & Map</button>
+                <button onclick="switchTab('contribute')" id="nav-contribute" class="px-4 py-2 rounded-lg bg-slate-700 text-white font-medium text-sm transition hover:bg-slate-600">+ Add Room Detail</button>
+                <button onclick="openAdminModal()" class="px-3 py-2 rounded-lg bg-slate-800 text-amber-400 font-medium text-sm border border-slate-600 transition hover:bg-slate-900" title="Admin Portal">🔒 Admin</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6">
+
+        <!-- ================= FINDER TAB ================= -->
+        <div id="tab-finder" class="space-y-6">
+            <!-- Search & Filter Bar -->
+            <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2 relative">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Search Rooms, Sub-schools or Courses</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">🔍</span>
+                        <input type="text" id="searchInput" oninput="handleSearch()" placeholder="e.g., Room 302, Mathematics, Building 2..." class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Filter by Sub-school / Building</label>
+                    <select id="subschoolFilter" onchange="handleSearch()" class="w-full px-3 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition text-sm">
+                        <option value="">All Sub-schools / Buildings</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Main Layout: Map & Directory Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Left Column: Interactive Map Viewer -->
+                <div class="lg:col-span-7 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span>📍</span> Structural Floor Plan & Map
+                        </h2>
+                        <span id="mapSubschoolTitle" class="text-xs bg-blue-100 text-brand px-3 py-1 rounded-full font-medium">Select a Sub-school</span>
+                    </div>
+
+                    <!-- Map Display Box -->
+                    <div id="mapViewerContainer" class="relative w-full h-96 bg-slate-100 rounded-xl border border-dashed border-slate-300 overflow-hidden flex items-center justify-center">
+                        <div id="mapPlaceholder" class="text-center p-6 text-slate-400">
+                            <p class="text-4xl mb-2">🗺️</p>
+                            <p class="text-sm font-medium">No structural map uploaded for this sub-school yet.</p>
+                            <p class="text-xs mt-1 text-slate-400">Admins can upload floor plans in the Admin Portal.</p>
+                        </div>
+                        <img id="activeMapImage" src="" alt="Subschool Map" class="hidden w-full h-full object-contain">
+                    </div>
+
+                    <!-- Subschool Quick Selector for Map -->
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <p class="text-xs font-medium text-slate-500 mb-2">Quick Switch Map View:</p>
+                        <div id="mapQuickButtons" class="flex flex-wrap gap-2">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Search Results / Room List -->
+                <div class="lg:col-span-5 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span>🏛️</span> Room Directory
+                        </h2>
+                        <span id="resultCount" class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium">0 rooms found</span>
+                    </div>
+
+                    <div id="roomListContainer" class="space-y-3 overflow-y-auto max-h-[420px] pr-1">
+                        <!-- Dynamic room cards -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================= CONTRIBUTE TAB (Public Room Submission) ================= -->
+        <div id="tab-contribute" class="hidden max-w-2xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900">Contribute Room Details</h2>
+                <p class="text-xs text-slate-500 mt-1">Help fellow students by adding missing room locations, classes, or building notes.</p>
+            </div>
+
+            <form id="contributionForm" onsubmit="handleRoomSubmission(event)" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Room Number / Name *</label>
+                        <input type="text" id="contribRoom" required placeholder="e.g. Room 402" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Sub-school / Building *</label>
+                        <select id="contribSubschool" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none">
+                            <option value="">Select Sub-school</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Floor Number *</label>
+                        <input type="text" id="contribFloor" required placeholder="e.g. 3rd Floor" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Associated Subjects / Professors</label>
+                        <input type="text" id="contribDetails" placeholder="e.g. Software Engineering, Dr. Bat" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Additional Directions / Notes</label>
+                    <textarea id="contribNotes" rows="3" placeholder="e.g. Turn right after entering the main lobby, near elevator B." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="switchTab('finder')" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-6 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-dark transition shadow-sm">Submit Room Details</button>
+                </div>
+            </form>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-6 text-center text-xs text-slate-500">
+        <p>NUM Campus Mapper & Room Finder • Hosted via GitHub Pages (<span id="repoNameDisplay">Ankh666/Num-mapping</span>)</p>
+    </footer>
+
+    <!-- ================= ADMIN MODAL ================= -->
+    <div id="adminModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-6">
+            
+            <!-- Login View -->
+            <div id="adminLoginView" class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-slate-900">🔒 Admin Authentication</h3>
+                    <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+                </div>
+                <p class="text-xs text-slate-500">Enter the admin passcode to manage sub-school maps and structural layouts.</p>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Passcode</label>
+                    <input type="password" id="adminPassInput" placeholder="Enter admin passcode" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none">
+                    <p class="text-[11px] text-slate-400 mt-1">Default demo passcode: <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-600">admin123</code></p>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button onclick="closeAdminModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Cancel</button>
+                    <button onclick="verifyAdmin()" class="px-5 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-dark">Login</button>
+                </div>
+            </div>
+
+            <!-- Dashboard View -->
+            <div id="adminDashboardView" class="hidden space-y-6">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">🛠️ Admin Control Center</h3>
+                        <p class="text-xs text-brand font-medium">Logged in successfully</p>
+                    </div>
+                    <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+                </div>
+
+                <!-- Add / Manage Sub-school Map -->
+                <div class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <h4 class="text-sm font-bold text-slate-800">Upload / Update Sub-school Map Image</h4>
+                    <form onsubmit="handleAdminMapUpload(event)" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Sub-school / Building Name</label>
+                            <input type="text" id="adminSubschoolName" required placeholder="e.g. School of Engineering and Applied Sciences" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Map Image URL (or pasted image link)</label>
+                            <input type="url" id="adminMapUrl" required placeholder="https://example.com/map-blueprint.png" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none">
+                            <p class="text-[11px] text-slate-400 mt-1">Tip: You can paste any direct image link or SVG/PNG map link here.</p>
+                        </div>
+                        <button type="submit" class="w-full py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-dark transition">Save & Publish Sub-school Map</button>
+                    </form>
+                </div>
+
+                <!-- Existing Sub-schools list -->
+                <div>
+                    <h4 class="text-xs font-semibold text-slate-500 uppercase mb-2">Managed Sub-schools & Maps</h4>
+                    <div id="adminSubschoolsList" class="space-y-2 max-h-40 overflow-y-auto">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-2 border-t border-slate-100">
+                    <button onclick="logoutAdmin()" class="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition">Log Out Admin</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Initial Mock Database
+        const defaultSubschools = [
+            { id: "SEAS", name: "School of Engineering and Applied Sciences (SEAS)", mapUrl: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80" },
+            { id: "BS", name: "Business School", mapUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80" },
+            { id: "SAS", name: "School of Arts and Sciences", mapUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80" },
+            { id: "LAW", name: "School of Law", mapUrl: "" }
+        ];
+
+        const defaultRooms = [
+            { id: 1, room: "Room 302", subschool: "SEAS", floor: "3rd Floor", details: "Computer Science Lab, Dr. Bold", notes: "Near the west wing stairs." },
+            { id: 2, room: "Room 105", subschool: "SEAS", floor: "1st Floor", details: "Electronics Workshop", notes: "Main ground floor corridor." },
+            { id: 3, room: "Auditorium A", subschool: "BS", floor: "2nd Floor", details: "Economics Lectures, Business Seminars", notes: "Centrally located next to main atrium." },
+            { id: 4, room: "Room 408", subschool: "SAS", floor: "4th Floor", details: "Mathematics Department", notes: "Take elevator to 4th floor." },
+            { id: 5, room: "Room 201", subschool: "LAW", floor: "2nd Floor", details: "Moot Courtroom", notes: "Opposite the faculty lounge." }
+        ];
+
+        // Load from localStorage or defaults
+        let subschools = JSON.parse(localStorage.getItem('num_subschools')) || defaultSubschools;
+        let rooms = JSON.parse(localStorage.getItem('num_rooms')) || defaultRooms;
+        let currentSelectedSubschool = subschools[0].id;
+        let isAdminLoggedIn = false;
+
+        // Initialize App
+        function initApp() {
+            populateDropdowns();
+            renderMapQuickButtons();
+            handleSearch();
+            selectSubschool(currentSelectedSubschool);
+        }
+
+        function saveData() {
+            localStorage.setItem('num_subschools', JSON.stringify(subschools));
+            localStorage.setItem('num_rooms', JSON.stringify(rooms));
+        }
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.getElementById('tab-finder').classList.add('hidden');
+            document.getElementById('tab-contribute').classList.add('hidden');
+            
+            document.getElementById('nav-finder').className = "px-4 py-2 rounded-lg bg-slate-700 text-white font-medium text-sm transition hover:bg-slate-600";
+            document.getElementById('nav-contribute').className = "px-4 py-2 rounded-lg bg-slate-700 text-white font-medium text-sm transition hover:bg-slate-600";
+
+            if (tabId === 'finder') {
+                document.getElementById('tab-finder').classList.remove('hidden');
+                document.getElementById('nav-finder').className = "px-4 py-2 rounded-lg bg-blue-700 text-white font-medium text-sm transition hover:bg-blue-600";
+            } else if (tabId === 'contribute') {
+                document.getElementById('tab-contribute').classList.remove('hidden');
+                document.getElementById('nav-contribute').className = "px-4 py-2 rounded-lg bg-blue-700 text-white font-medium text-sm transition hover:bg-blue-600";
+            }
+        }
+
+        // Populate Dropdowns
+        function populateDropdowns() {
+            const filterSelect = document.getElementById('subschoolFilter');
+            const contribSelect = document.getElementById('contribSubschool');
+            
+            let filterHtml = '<option value="">All Sub-schools / Buildings</option>';
+            let contribHtml = '<option value="">Select Sub-school</option>';
+
+            subschools.forEach(s => {
+                filterHtml += `<option value="${s.id}">${s.name}</option>`;
+                contribHtml += `<option value="${s.id}">${s.name}</option>`;
+            });
+
+            filterSelect.innerHTML = filterHtml;
+            contribSelect.innerHTML = contribHtml;
+        }
+
+        // Render Quick Map Buttons
+        function renderMapQuickButtons() {
+            const container = document.getElementById('mapQuickButtons');
+            let html = '';
+            subschools.forEach(s => {
+                const isActive = currentSelectedSubschool === s.id;
+                html += `<button onclick="selectSubschool('${s.id}')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition ${isActive ? 'bg-brand text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">${s.id}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // Select Sub-school for Map Viewer
+        function selectSubschool(subschoolId) {
+            currentSelectedSubschool = subschoolId;
+            renderMapQuickButtons();
+
+            const found = subschools.find(s => s.id === subschoolId);
+            const titleEl = document.getElementById('mapSubschoolTitle');
+            const imgEl = document.getElementById('activeMapImage');
+            const placeholderEl = document.getElementById('mapPlaceholder');
+
+            if (found) {
+                titleEl.textContent = found.name;
+                if (found.mapUrl && found.mapUrl.trim() !== '') {
+                    imgEl.src = found.mapUrl;
+                    imgEl.classList.remove('hidden');
+                    placeholderEl.classList.add('hidden');
+                } else {
+                    imgEl.src = '';
+                    imgEl.classList.add('hidden');
+                    placeholderEl.classList.remove('hidden');
+                }
+            }
+        }
+
+        // Search & Filter Logic
+        function handleSearch() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filterSubschool = document.getElementById('subschoolFilter').value;
+
+            const filtered = rooms.filter(r => {
+                const matchesQuery = r.room.toLowerCase().includes(query) ||
+                                     r.details.toLowerCase().includes(query) ||
+                                     r.notes.toLowerCase().includes(query) ||
+                                     r.floor.toLowerCase().includes(query);
+                const matchesSubschool = filterSubschool === "" || r.subschool === filterSubschool;
+                return matchesQuery && matchesSubschool;
+            });
+
+            renderRoomList(filtered);
+        }
+
+        // Render Room List
+        function renderRoomList(roomArray) {
+            const container = document.getElementById('roomListContainer');
+            const countEl = document.getElementById('resultCount');
+            countEl.textContent = `${roomArray.length} rooms found`;
+
+            if (roomArray.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-400">
+                        <p class="text-3xl mb-1">📭</p>
+                        <p class="text-sm font-medium">No rooms found matching your search.</p>
+                        <p class="text-xs mt-1">Try adding this room using the "+ Add Room Detail" button!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            roomArray.forEach(r => {
+                const subObj = subschools.find(s => s.id === r.subschool);
+                const subName = subObj ? subObj.name : r.subschool;
+
+                html += `
+                    <div onclick="selectSubschool('${r.subschool}')" class="p-3.5 rounded-xl border border-slate-200 hover:border-brand hover:shadow-sm transition bg-slate-50/50 cursor-pointer space-y-2">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="font-bold text-slate-900 text-sm">${r.room}</span>
+                                <span class="ml-2 text-xs font-semibold bg-blue-50 text-brand px-2 py-0.5 rounded-md">${r.floor}</span>
+                            </div>
+                            <span class="text-[11px] font-semibold bg-slate-200 text-slate-700 px-2 py-0.5 rounded">${r.subschool}</span>
+                        </div>
+                        <p class="text-xs text-slate-600 font-medium">📚 ${r.details || 'General Classroom'}</p>
+                        ${r.notes ? `<p class="text-[11px] text-slate-500 italic">💡 Note: ${r.notes}</p>` : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // Handle Public Room Submission
+        function handleRoomSubmission(e) {
+            e.preventDefault();
+            const roomNum = document.getElementById('contribRoom').value.trim();
+            const subschool = document.getElementById('contribSubschool').value;
+            const floor = document.getElementById('contribFloor').value.trim();
+            const details = document.getElementById('contribDetails').value.trim();
+            const notes = document.getElementById('contribNotes').value.trim();
+
+            const newRoom = {
+                id: Date.now(),
+                room: roomNum,
+                subschool: subschool,
+                floor: floor,
+                details: details,
+                notes: notes
+            };
+
+            rooms.unshift(newRoom);
+            saveData();
+            document.getElementById('contributionForm').reset();
+            alert('Thank you! Room details added successfully.');
+            switchTab('finder');
+            handleSearch();
+        }
+
+        // Admin Modal Controls
+        function openAdminModal() {
+            document.getElementById('adminModal').classList.remove('hidden');
+            if (isAdminLoggedIn) {
+                document.getElementById('adminLoginView').classList.add('hidden');
+                document.getElementById('adminDashboardView').classList.remove('hidden');
+                renderAdminSubschoolsList();
+            } else {
+                document.getElementById('adminLoginView').classList.remove('hidden');
+                document.getElementById('adminDashboardView').classList.add('hidden');
+            }
+        }
+
+        function closeAdminModal() {
+            document.getElementById('adminModal').classList.add('hidden');
+        }
+
+        function verifyAdmin() {
+            const passcode = document.getElementById('adminPassInput').value;
+            if (passcode === 'admin123') {
+                isAdminLoggedIn = true;
+                document.getElementById('adminPassInput').value = '';
+                document.getElementById('adminLoginView').classList.add('hidden');
+                document.getElementById('adminDashboardView').classList.remove('hidden');
+                renderAdminSubschoolsList();
+            } else {
+                alert('Incorrect passcode. Default is admin123');
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            document.getElementById('adminDashboardView').classList.add('hidden');
+            document.getElementById('adminLoginView').classList.remove('hidden');
+        }
+
+        // Admin Map Upload Handler
+        function handleAdminMapUpload(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('adminSubschoolName').value.trim();
+            const mapUrlInput = document.getElementById('adminMapUrl').value.trim();
+
+            let existing = subschools.find(s => s.name.toLowerCase() === nameInput.toLowerCase() || s.id.toLowerCase() === nameInput.toLowerCase());
+            
+            if (existing) {
+                existing.mapUrl = mapUrlInput;
+            } else {
+                const newId = nameInput.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 5) || 'NUM';
+                subschools.push({ id: newId, name: nameInput, mapUrl: mapUrlInput });
+            }
+
+            saveData();
+            populateDropdowns();
+            renderMapQuickButtons();
+            renderAdminSubschoolsList();
+            selectSubschool(existing ? existing.id : subschools[subschools.length - 1].id);
+            alert('Sub-school map uploaded successfully!');
+            document.getElementById('adminSubschoolName').value = '';
+            document.getElementById('adminMapUrl').value = '';
+        }
+
+        function renderAdminSubschoolsList() {
+            const container = document.getElementById('adminSubschoolsList');
+            let html = '';
+            subschools.forEach(s => {
+                html += `
+                    <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200 text-xs">
+                        <div>
+                            <span class="font-bold text-slate-800">${s.id}</span> - <span class="text-slate-600">${s.name}</span>
+                            <p class="text-[10px] text-slate-400 truncate max-w-xs">${s.mapUrl ? '🗺️ Map configured' : '⚠️ No map linked'}</p>
+                        </div>
+                        <button onclick="deleteSubschool('${s.id}')" class="text-red-500 hover:text-red-700 font-medium px-2 py-1">Delete</button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function deleteSubschool(id) {
+            if (confirm(`Are you sure you want to delete sub-school ${id}?`)) {
+                subschools = subschools.filter(s => s.id !== id);
+                saveData();
+                populateDropdowns();
+                renderMapQuickButtons();
+                renderAdminSubschoolsList();
+                if (currentSelectedSubschool === id && subschools.length > 0) {
+                    selectSubschool(subschools[0].id);
+                }
+            }
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
